@@ -9,16 +9,33 @@ set -e
 PROJECT=
 COMMIT=
 
-if [ $# -eq 0 ] || [ $# -gt 2 ]; then
-  echo 'Error' && exit 1
-elif [ $# -eq 1 ]; then
-  PROJECT=$(git remote get-url origin | sed -e 's/^git@github.com:\(.*\).git$/\1/g')
+project-from-remote() {
+  git remote get-url "${1?}" | \
+    grep -o 'github\.com[/:].\+' | \
+    sed 's/github\.com.//; s/\.git$//'
+}
+
+if [ $# -eq 1 ]; then
+  PROJECT="$(project-from-remote origin)"
   COMMIT="${1}"
-else
+  shift 1
+elif [ $# -ge 2 ]; then
   PROJECT="${1}"
   COMMIT="${2}"
+  shift 2
+else
+  exit 1
 fi
 
-hub api graphql -f q="${COMMIT} type:pr repo:${PROJECT}" \
-                -f query='query($q: String!) { search(query: $q, type: ISSUE, first: 3) { nodes { ... on PullRequest { number title url } } } }' \
-  | jq '.data.search.nodes[] | (.url + " - " + .title)' -r
+hub api graphql -f q="${COMMIT} type:pr repo:${PROJECT}" "$@" -f query='
+  query($q: String!) {
+    search(query: $q, type: ISSUE, first: 3) {
+      nodes {
+        ... on PullRequest {
+          url
+          title
+        }
+      }
+    }
+  }
+' | jq -r '.data.search.nodes[] | "\(.url) - \(.title)"'
