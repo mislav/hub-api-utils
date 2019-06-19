@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Usage: hub-pr-merge <PR-NUMBER>
+#
+# Author: Oliver Joseph Ash
+
+# If a script errors, force the script to fail immediately.
+set -e
+
+ID=$1
+# https://unix.stackexchange.com/questions/225943/except-the-1st-argument/225951#225951
+REST=${@:2}
+
+PR_PATH="repos/{owner}/{repo}/pulls/$ID"
+
+echo "Merging $ID"
+
+# https://developer.github.com/v3/pulls/#merge-a-pull-request-merge-button
+echo $REST | xargs hub api -XPUT $PR_PATH/merge
