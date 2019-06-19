@@ -2,18 +2,15 @@
 
 # Usage: hub-pr-merge <PR-NUMBER>
 #
+# Cause a pull request to be merged into its respective base branch.
+#
 # Author: Oliver Joseph Ash
 
 # If a script errors, force the script to fail immediately.
 set -e
 
 ID=$1
-# https://unix.stackexchange.com/questions/225943/except-the-1st-argument/225951#225951
-REST=${@:2}
-
-PR_PATH="repos/{owner}/{repo}/pulls/$ID"
-
-echo "Merging $ID"
+shift 1
 
 # https://developer.github.com/v3/pulls/#merge-a-pull-request-merge-button
-echo $REST | xargs hub api -XPUT $PR_PATH/merge
+hub api -XPUT "repos/{owner}/{repo}/pulls/$ID/merge" "$@"
