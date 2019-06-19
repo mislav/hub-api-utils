@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+# Usage: hub-pr-with-commit [PROJECT] SHA
+#
+# Author: Fabio Rehm
+
+set -e
+
+PROJECT=
+COMMIT=
+
+if [ $# -eq 0 ] || [ $# -gt 2 ]; then
+  echo 'Error' && exit 1
+elif [ $# -eq 1 ]; then
+  PROJECT=$(git remote get-url origin | sed -e 's/^git@github.com:\(.*\).git$/\1/g')
+  COMMIT="${1}"
+else
+  PROJECT="${1}"
+  COMMIT="${2}"
+fi
+
+hub api graphql -f q="${COMMIT} type:pr repo:${PROJECT}" \
+                -f query='query($q: String!) { search(query: $q, type: ISSUE, first: 3) { nodes { ... on PullRequest { number title url } } } }' \
+  | jq '.data.search.nodes[] | (.url + " - " + .title)' -r
