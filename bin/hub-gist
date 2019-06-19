@@ -1,0 +1,28 @@
+#!/bin/bash
+# Usage: hub-gist [--public] <FILE>
+#
+# Create a gist with the contents of <FILE>.
+#
+# Author: @mislav
+set -e
+
+gist-create() {
+  local filename
+  local public=false
+  if [ "${1:-}" = "--public" ]; then
+    public=true
+    shift 1
+  fi
+  filename="${1?}"
+
+  # https://developer.github.com/v3/gists/#create-a-gist
+  jq -nR --arg filename "$filename" --argjson public "$public" '
+    { files: {
+        ($filename): { "content": [inputs] | join("\n") }
+      },
+      public: $public
+    }
+  ' "$filename" | hub api gists --input -
+}
+
+gist-create "$@" | jq -r '.html_url'

@@ -1,0 +1,44 @@
+#!/bin/bash
+# Usage: hub-pr-base
+#
+# Show the base branch of the pull request associated with the current branch.
+#
+# Author: @mislav
+set -e
+
+published-branch() {
+  local branch
+  if branch="$(git rev-parse --symbolic-full-name @{upstream} 2>/dev/null)"; then
+    branch="${branch#refs/remotes/}"
+    echo "${branch#*/}"
+  else
+    branch="$(git rev-parse --symbolic-full-name HEAD)"
+    echo "${branch#refs/heads/}"
+  fi
+}
+
+base-branch() {
+  local branch
+  branch="$(published-branch)"
+
+  hub api graphql -f branch="$branch" "$@" -f query='
+    query($branch: String!) {
+      repository(owner: "{owner}", name: "{repo}") {
+        pullRequests(headRefName: $branch, states: OPEN, first: 10) {
+          edges {
+            node {
+              baseRefName
+              isCrossRepository
+            }
+          }
+        }
+      }
+    }
+  '
+}
+
+base-branch "$@" | jq -r '
+  .data.repository.pullRequests.edges[].node |
+    select(.isCrossRepository == false) |
+    .baseRefName
+' | head -1

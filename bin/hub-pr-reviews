@@ -1,0 +1,92 @@
+#!/bin/bash
+# Usage: hub-pr-reviews [<PR-NUMBER>]
+#
+# Show the state of reviews for a pull request. When <PR-NUMBER> isn't
+# specified, find the pull request associated with the current branch.
+#
+# Author: @mislav
+set -e
+
+published-branch() {
+  local branch
+  if branch="$(git rev-parse --symbolic-full-name @{upstream} 2>/dev/null)"; then
+    branch="${branch#refs/remotes/}"
+    echo "${branch#*/}"
+  else
+    branch="$(git rev-parse --symbolic-full-name HEAD)"
+    echo "${branch#refs/heads/}"
+  fi
+}
+
+reviews() {
+  local branch_field query jq_query
+  if [ "$1" -gt 0 ] 2>/dev/null; then
+    branch_field="-Fpr_number=$1"
+    shift 1
+    query='
+      query($pr_number: Int!, $per_page: Int = 100, $endCursor: String) {
+        repository(owner: "{owner}", name: "{repo}") {
+          pullRequest(number: $pr_number) {
+            ...reviewFields
+          }
+        }
+      }
+    '
+    jq_query='.data.repository.pullRequest'
+  else
+    branch_field="-fbranch=$(published-branch)"
+    query='
+      query($branch: String!, $per_page: Int = 100, $endCursor: String) {
+        repository(owner: "{owner}", name: "{repo}") {
+          pullRequests(headRefName: $branch, states: OPEN, first: 1) {
+            edges {
+              node {
+                ...reviewFields
+              }
+            }
+          }
+        }
+      }
+    '
+    jq_query='.data.repository.pullRequests.edges[].node'
+  fi
+
+  local fragment='
+    fragment reviewFields on PullRequest {
+      reviewRequests(first: 100) {
+        edges {
+          node {
+            requestedReviewer {
+              ... on User {
+                login
+              }
+              ... on Team {
+                combinedSlug
+              }
+            }
+          }
+        }
+      }
+      reviews(first: $per_page, after: $endCursor) {
+        edges {
+          node {
+            author {
+              login
+            }
+            state
+          }
+        }
+      }
+    }
+  '
+
+  hub api graphql "$branch_field" "$@" -F query=@- <<<"$query $fragment" | \
+    jq -r "$jq_query"' |
+      "Requested:",
+      (.reviewRequests.edges[].node.requestedReviewer | .login // .combinedSlug),
+      "\nReviewed:",
+      (.reviews.edges[].node | [.author.login,.state] | @tsv)
+    '
+}
+
+reviews "$@"

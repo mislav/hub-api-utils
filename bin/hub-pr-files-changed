@@ -1,0 +1,34 @@
+#!/bin/bash
+# Usage: hub-pr-files-changed <PR-NUMBER>
+#
+# Lists files changed in a specific pull request.
+#
+# Author: @mislav
+set -e
+
+list-pr-files() {
+  local pr_number="${1?}"
+  shift 1
+
+  hub api -H 'accept: application/vnd.github.ocelot-preview+json' graphql -F "pr=$pr_number" "$@" -f query='
+    query($pr: Int!, $per_page: Int = 100, $endCursor: String) {
+      repository(owner: "{owner}", name: "{repo}") {
+        pullRequest(number: $pr) {
+          files(first: $per_page, after: $endCursor) {
+            edges {
+              node {
+                path
+              }
+            }
+            pageInfo {
+              endCursor
+              hasNextPage
+            }
+          }
+        }
+      }
+    }
+  '
+}
+
+list-pr-files "$@" --paginate -t | awk -F '\t' '/\.path\t/ { print $2 }'

@@ -1,0 +1,40 @@
+#!/bin/bash
+# Usage: hub-search-repos [<N>] <QUERY>
+#
+# List N repositories (default: 10) and their stars count that match <QUERY>.
+#
+# Author: @mislav
+set -e
+
+search() {
+  local args=()
+  if [ "${1#-}" -gt 0 ] 2>/dev/null; then
+    args+=(-F per_page="${1#-}")
+    shift 1
+  fi
+  args+=(-f q="${1?}")
+  shift 1
+
+  hub api graphql "${args[@]}" "$@" -f query='
+    query($q: String!, $per_page: Int = 10, $endCursor: String) {
+      search(query: $q, type: REPOSITORY, first: $per_page, after: $endCursor) {
+        edges {
+          node {
+            ...on Repository {
+              nameWithOwner
+              stargazers {
+                totalCount
+              }
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  '
+}
+
+search "$@" | jq -r '.data.search.edges[].node | [.nameWithOwner,.stargazers.totalCount] | @tsv'

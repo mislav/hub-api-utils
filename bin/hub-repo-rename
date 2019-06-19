@@ -1,0 +1,22 @@
+#!/bin/bash
+# Usage: hub-repo-rename <NEW-NAME>
+#
+# Author: @mislav
+set -e
+
+url_type='html_url'
+case "$(git remote get-url origin)" in
+  'git@'* | 'git+ssh:'* )
+    url_type='ssh_url'
+    ;;
+  'git:'* )
+    url_type='git_url'
+    ;;
+esac
+
+new_url="$(hub api -t -XPATCH 'repos/{owner}/{repo}' -f name="${1?}" | \
+  awk "/^\\.${url_type}\\t/ { print \$2 }")"
+
+[ -n "$new_url" ] || exit 1
+
+git remote set-url origin "$new_url"

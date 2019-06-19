@@ -1,0 +1,21 @@
+#!/bin/bash
+# Usage: hub-comment <ISSUE-NUMBER> [<TEXT>]
+#
+# Creates a comment in the specified issue or pull request. If <TEXT> isn't
+# given as argument, it is read from standard input.
+#
+# Author: @mislav
+set -e
+
+issue_number="${1?}"
+shift 1
+
+if [ -n "$1" ]; then
+  body_field="-fbody=$1"
+  shift 1
+else
+  body_field="-Fbody=@-"
+fi
+
+hub api "repos/{owner}/{repo}/issues/${issue_number}/comments" \
+  "$body_field" "$@" -t | awk '/^\.html_url\t/ { print $(NF) }'
