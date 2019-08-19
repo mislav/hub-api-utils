@@ -24,6 +24,7 @@ elif [ $# -ge 2 ]; then
   COMMIT="${2}"
   shift 2
 else
+  echo "Usage: hub-pr-with-commit [PROJECT] SHA"
   exit 1
 fi
 
