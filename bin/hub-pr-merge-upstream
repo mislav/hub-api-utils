@@ -1,0 +1,112 @@
+#!/bin/bash
+# Merge the latest master branch into the current pull request while taking into
+# account that the base branch of the current PR might be different than master.
+#
+# When the current branch has PR A opened that is based on PR B, B is based on C,
+# and C ultimately has "master" as base branch, do this:
+#
+# 1. merge "master" into C;
+# 2. merge C into B;
+# 3. merge B into A.
+#
+# All merges are automatically pushed.
+
+set -euo pipefail
+
+remote=origin
+
+if ! type -p hub >/dev/null; then
+  echo "This command requires hub: \`brew install hub'" >&2
+  exit 1
+fi
+if ! hub help api --plain-text &>/dev/null; then
+  echo "You need to upgrade hub: \`brew install hub'" >&2
+  exit 1
+fi
+if ! type -p jq >/dev/null; then
+  echo "This command requires jq: \`brew install jq'" >&2
+  exit 1
+fi
+
+[ -e ./bin/git ] && alias git=./bin/git
+
+if default_branch="$(git symbolic-ref -q refs/remotes/$remote/HEAD)"; then
+  default_branch="${default_branch#refs/remotes/}"
+  default_branch="${default_branch#*/}"
+else
+  default_branch=master
+fi
+
+if current_branch="$(git rev-parse --symbolic-full-name @{upstream} 2>/dev/null)"; then
+  current_branch="${current_branch#refs/remotes/}"
+  current_branch="${current_branch#*/}"
+else
+  current_branch="$(git rev-parse --symbolic-full-name HEAD)"
+  current_branch="${current_branch#refs/heads/}"
+fi
+
+find-base-branch() {
+  local branch="${1?}"
+  local response errors
+
+  response="$(hub api graphql -f branch="$branch" -f query='
+    query($branch: String!) {
+      repository(owner: "{owner}", name: "{repo}") {
+        pullRequests(headRefName: $branch, states: OPEN, first: 10) {
+          edges {
+            node {
+              baseRefName
+              isCrossRepository
+            }
+          }
+        }
+      }
+    }
+  ')"
+
+  errors="$(jq -r '(select(.message) | .message) , .errors[]?.message' <<<"$response" 2>/dev/null || true)"
+  if [ -n "$errors" ]; then
+    printf "Error fetching '%s' info from GitHub API:\n%s\n" "$branch" "$errors" >&2
+    if grep -q 'SAML enforcement' <<<"$errors"; then
+      echo "Visit https://github.com/settings/tokens and choose 'Enable SSO' for hub's token." >&2
+    fi
+    return 1
+  fi
+
+  jq -r '.data.repository.pullRequests.edges[].node |
+    select(.isCrossRepository == false) |
+    .baseRefName' <<<"$response" | head -1
+}
+
+stack=("$current_branch")
+while true; do
+  base_branch="$(find-base-branch "${stack[0]}")"
+  if [ -z "$base_branch" ]; then
+    echo "No open pull request found for branch '${stack[0]}'" >&2
+    exit 1
+  fi
+  stack=("$base_branch" "${stack[@]}")
+  if [ "$base_branch" = "$default_branch" ]; then
+    break
+  fi
+done
+
+trap "git checkout $current_branch" ERR
+
+branch_to_merge=
+sha_to_merge=
+for branch in "${stack[@]}"; do
+  echo "Fetching branch: $branch"
+  git fetch -q "$remote" "$branch"
+  if ! git checkout -q -b "$branch" FETCH_HEAD 2>/dev/null; then
+    git checkout -q "$branch"
+    git merge -q --no-stat --ff-only FETCH_HEAD
+  fi
+  if [ -n "$branch_to_merge" ]; then
+    echo "Merging branch: $branch_to_merge"
+    git merge -q --no-stat --no-ff --no-edit -m "Merge branch '$branch_to_merge' into $branch" "$sha_to_merge"
+    git push -q "$remote" "HEAD:$branch"
+  fi
+  branch_to_merge="$branch"
+  sha_to_merge="$(git rev-parse HEAD)"
+done
