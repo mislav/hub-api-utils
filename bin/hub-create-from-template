@@ -1,0 +1,52 @@
+#!/bin/bash
+# Usage: hub-create-from-template <TEMPLATE-REPO> [<ORG>/]<REPO-NAME> [--public]
+#        git clone `hub-create-from-template <args...>`
+#
+# Creates a new GitHub repository based on a repository template.
+set -euo pipefail
+
+TEMPLATE_REPO=
+REPO_OWNER=
+REPO_NAME=
+PRIVATE=true
+MIME_TYPE='application/vnd.github.v3+json;charset=utf-8, application/vnd.github.baptiste-preview'
+
+for arg; do
+  case "$arg" in
+    --public ) PRIVATE=false ;;
+    * )
+      if [ -z "$TEMPLATE_REPO" ]; then
+        TEMPLATE_REPO="$arg"
+      else
+        REPO_OWNER="${arg%/*}"
+        [ "$REPO_OWNER" != "$arg" ] || REPO_OWNER=
+        REPO_NAME="${arg#*/}"
+      fi
+      ;;
+  esac
+done
+
+api() {
+  local response
+  if response="$(hub api -H "Accept: $MIME_TYPE" "$@")"; then
+    printf "%s" "$response"
+  else
+    printf "%s" "$response" | jq . >&2
+    return 1
+  fi
+}
+
+create_from_template() {
+  local source_repo="${1?}"
+  shift 1
+  api "repos/${source_repo}/generate" "$@"
+}
+
+create_args=(
+  "$TEMPLATE_REPO"
+  -f name="$REPO_NAME"
+  -F private="$PRIVATE"
+)
+[ -z "$REPO_OWNER" ] || create_args+=(-f owner="$REPO_OWNER")
+
+create_from_template "${create_args[@]}" | jq -r '.html_url'
