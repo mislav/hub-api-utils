@@ -1,0 +1,26 @@
+#!/bin/bash
+# Usage: hub-pr-project <pr-number> <project-name>
+#
+# Adds a Pull Request by number to a Project specified by name.
+set -euo pipefail
+
+api() {
+  hub api -H 'accept: application/vnd.github.inertia-preview+json' "$@"
+}
+
+pr_number="${1?}"
+project_name="${2?}"
+
+# find out content_id of a pull request
+pr_id="$(api "repos/{owner}/{repo}/pulls/${pr_number}" | jq -r '.id')"
+
+# find the project by name
+columns_url="$(api -XGET "repos/{owner}/{repo}/projects" -f state=open | \
+  jq -r '.[] | select((.name | ascii_downcase) == ($project_name | ascii_downcase)) | .columns_url' \
+  --arg project_name "$project_name")"
+
+# find out cards endpoint for a project's first column
+cards_url="$(api "$columns_url" | jq -r '.[0].cards_url')"
+
+# add a card
+api "$cards_url" -F content_id="$pr_id" -f content_type=PullRequest >/dev/null
