@@ -1,0 +1,41 @@
+#!/bin/bash
+# Usage: hub-comment-mentions
+#
+# Reads the text of a GitHub comment from standard input and extracts the names
+# of every person who would get subscribed to this thread via @-mentions. Needs
+# the `org:read` scope for looking up members of mentioned teams.
+#
+# Author: @mislav
+set -e
+
+find_members() {
+  local org="${1%/*}"
+  local team="${1#*/}"
+  hub api graphql --paginate -t -f org="$org" -f team="$team" -f query='
+    query($org: String!, $team: String!, $endCursor: String) { 
+      organization(login: $org) {
+        team(slug: $team) {
+          members(first: 100, after: $endCursor) {
+            nodes { login }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+          }
+        }
+      }
+    }
+  ' | awk '/\.login\t/ {print $2}'
+}
+
+extract_mentions() {
+  grep -o '@[a-zA-Z0-9/_-]\+' | sort -fu | sed 's/^@//'
+}
+
+cat "$@" | extract_mentions | while read mention; do
+  if [[ $mention == */* ]]; then
+    find_members "$mention"
+  else
+    echo "$mention"
+  fi
+done | sort -fu
