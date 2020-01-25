@@ -11,16 +11,18 @@ milestones() {
     query($per_page: Int = 100, $endCursor: String) {
       repository(owner: "{owner}", name: "{repo}") {
         milestones(first: $per_page, after: $endCursor, states: OPEN, orderBy: {field:CREATED_AT, direction:DESC}) {
-          edges {
-            node {
-              title
-              number
-            }
+          nodes {
+            title
+            number
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
           }
         }
       }
     }
-  ' | jq -r '.data.repository.milestones.edges[].node | [.number,.title] | @tsv'
+  ' | jq -r '.data.repository.milestones.nodes[] | [.number,.title] | @tsv'
 }
 
 milestones "$@"
