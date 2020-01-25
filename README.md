@@ -7,7 +7,6 @@ command.
 Some available commands are:
 
 * [hub-comment](./bin/hub-comment) - post a comment to an issue/PR
-* [hub-gist](./bin/hub-gist) - create a Gist from a file
 * [hub-pr-merge](./bin/hub-pr-merge) - The Merge Button™ on the command-line
 * [hub-pr-with-commit](./bin/hub-pr-with-commit) - find the PR which originated a commit
 * [hub-repo-rename](./bin/hub-repo-rename) - rename the current repo
