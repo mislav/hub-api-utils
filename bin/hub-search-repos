@@ -18,13 +18,11 @@ search() {
   hub api graphql "${args[@]}" "$@" -f query='
     query($q: String!, $per_page: Int = 10, $endCursor: String) {
       search(query: $q, type: REPOSITORY, first: $per_page, after: $endCursor) {
-        edges {
-          node {
-            ...on Repository {
-              nameWithOwner
-              stargazers {
-                totalCount
-              }
+        nodes {
+          ...on Repository {
+            nameWithOwner
+            stargazers {
+              totalCount
             }
           }
         }
@@ -37,4 +35,4 @@ search() {
   '
 }
 
-search "$@" | jq -r '.data.search.edges[].node | [.nameWithOwner,.stargazers.totalCount] | @tsv'
+search "$@" | jq -r '.data.search.nodes[] | [.nameWithOwner,.stargazers.totalCount] | @tsv'
