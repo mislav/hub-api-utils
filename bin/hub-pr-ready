@@ -1,0 +1,25 @@
+#!/bin/bash
+# Usage: hub-pr-ready <PR-NUMBER>
+#
+# Marks a pull request as "ready for review", i.e. a non-draft.
+#
+# Author: @mislav
+set -e
+
+num="${1?}"
+
+id="$(hub api -t graphql -f query='
+  query($pr: Int!) {
+    repository(owner: "{owner}", name: "{repo}") {
+      pullRequest(number: $pr) {id}
+    }
+  }
+' -F pr=$num | awk -F'\t' '/\.id\t/ {print $2}')"
+
+hub api graphql -f query='
+  mutation($prID: String!) {
+    markPullRequestReadyForReview(
+      input: {pullRequestId: $prID}
+    ){ clientMutationId }
+  }
+' -f "prID=$id" >/dev/null
