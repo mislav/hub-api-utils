@@ -1,0 +1,78 @@
+#! /bin/bash
+
+# Add or remove collaborators to a GitHub repo
+# Usage: hub-collab [-h] [-l] [-a USER] [-r USER] [-c USER]
+#
+# Author: @srafi1
+
+if [[ $# -eq 0 || ($# < 2 &&
+    $1 != -l && $1 != --list && $1 != -h && $1 != --help) ]]
+then
+    echo "usage: hub-collab [-h] [-l] [-a USER] [-r USER] [-c USER]"
+    exit
+fi
+
+is_git_dir=$(git rev-parse --is-inside-work-tree 2> /dev/null)
+if [[ "true" != $is_git_dir ]]
+then
+    echo "This is not a git directory"
+    exit
+fi
+
+has_origin=$(git remote -v | grep origin)
+if [[ -z $has_origin ]]
+then
+    echo "No remote with the name 'origin' detected"
+    exit
+fi
+
+if [[ $1 != -h && $1 != --help ]]
+then
+    user=$(basename $(dirname $(git remote get-url origin)) | cut -d ":" -f "2-")
+    repo=$(basename $(git remote get-url origin) .git)
+    collab=$2
+fi
+
+case $1 in
+    -h|--help)
+        echo "
+usage: hub-collab [-h] [-l] [-a USER] [-r USER] [-c USER]
+
+optional arguments:
+    -h, --help              Print this help message
+    -l, --list              List collaborators on the current repo
+    -a USER, --add USER     Add a collaborator to the current repo
+    -r USER, --remove USER  Remove a collaborator from the current repo
+    -c USER, --check USER   Check if USER is a collaborator
+"
+        ;;
+    -l|--list)
+        hub api repos/$user/$repo/collaborators -t |
+            grep login |
+            cut -d "	" -f 2
+        ;;
+    -a|--add)
+        added=$(hub api -X PUT repos/$user/$repo/collaborators/$collab -i |
+            grep "Status: 201")
+        if [[ -z $added ]]
+        then
+            echo "$collab is already a collaborator"
+        else
+            echo "Invitation sent"
+        fi
+        ;;
+    -r|--remove)
+        hub api -X DELETE repos/$user/$repo/collaborators/$collab
+        echo "User removed from repository"
+        ;;
+    -c|--check)
+        is_collab=$(hub api repos/$user/$repo/collaborators/$collab -i |
+    grep "Status: 204")
+        if [[ -z $is_collab ]]
+        then
+            echo "$collab is NOT a collaborator on $user/$repo"
+        else
+            echo "$collab is a collaborator on $user/$repo"
+        fi
+        ;;
+esac
