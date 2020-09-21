@@ -68,3 +68,7 @@ hub api graphql -f query='QUERY'
 ```
 
 For more information/examples, see https://hub.github.com/hub-api.1.html.
+
+## Similar projects
+
+[yashbhutwala/awesome-gh-aliases](https://github.com/yashbhutwala/awesome-gh-aliases) is a similar awesome project, inspired by this repo, but for the official [GitHub cli `gh`](https://github.com/cli/cli)
