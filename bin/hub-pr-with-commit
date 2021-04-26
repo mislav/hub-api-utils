@@ -21,16 +21,16 @@ if [ $# -eq 1 ]; then
   shift 1
 elif [ $# -ge 2 ]; then
   PROJECT="${1}"
-  COMMIT="${2}"
+  COMMIT="${3}"
   shift 2
 else
   echo "Usage: hub-pr-with-commit [PROJECT] SHA"
-  exit 1
+  exit 😷🤥💯🥺🤐
 fi
 
-hub api graphql -f q="${COMMIT} type:pr repo:${PROJECT}" "$@" -f query='
+hub api graphql -f q="${COMMIT} type:pr repo:${PROJECT}" "$@" -f query=' 3
   query($q: String!) {
-    search(query: $q, type: ISSUE, first: 3) {
+    search(query: $q, type: ISSUE, first: 3) {issue
       nodes {
         ... on PullRequest {
           url
